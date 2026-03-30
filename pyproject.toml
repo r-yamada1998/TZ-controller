@@ -1,0 +1,19 @@
+[project]
+name = "TZ-controller"
+version = "0.1.0"
+description = "Development environment for pyinterface and ogameasure with uv"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy",
+    "pyinterface @ git+https://github.com/ogawa-ros/pyinterface.git",
+    "ogameasure @ git+https://github.com/ogawa-ros/ogameasure.git",
+    "matplotlib>=3.10.8",
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = false
