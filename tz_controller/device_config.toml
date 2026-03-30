@@ -1,0 +1,25 @@
+[sis_bias_setter]
+_ = "CPZ340816"
+rsw_id = 0
+channel = { USB = 3, LSB = 4 }
+max_mv = [-8, 8]
+converter = { USB = "x / 3", LSB = "x/3" }
+tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4}
+
+[sis_bias_reader]
+device_name = "CPZ3177"
+rsw_id = 0
+all_ch_num = 4
+ch_num_li = [5,6,7,8]
+ave_num = 100
+smpl_freq = 1000
+single_diff = "DIFF"
+ch_range = '5V'
+
+
+[local_attenuator]
+_ = "CPZ340516"
+channel = { 100GHz = 1 }
+range = "DA0_100mA"
+rate = 0.1
+rsw_id = 0
