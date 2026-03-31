@@ -9,6 +9,7 @@ dependencies = [
     "pyinterface @ git+https://github.com/ogawa-ros/pyinterface.git",
     "ogameasure @ git+https://github.com/ogawa-ros/ogameasure.git",
     "matplotlib>=3.10.8",
+    "tomli>=2.4.1",
 ]
 
 [build-system]
@@ -17,3 +18,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "ipython>=9.10.1",
+]
