@@ -10,12 +10,12 @@ class SISSetter(DeviceBase):
         super().__init__(device_name, config_file)
         
         import pyinterface
-        self.da = pyinterface.open(3346,self.Config.rsw_id)
+        self.da = pyinterface.open(3346,self.device_config.rsw_id)
         self.da.initialize()
 
     def setup(self):
-        self.ch_list = self.Config.ch_num_li
-        self.ch_range = self.Config.ch_range
+        self.ch_list = self.device_config.ch_num_li
+        self.ch_range = self.device_config.ch_range
         if isinstance(self.ch_range, list):
             if len(self.ch_range) != len(self.ch_list):
                 raise ValueError("length of ch_range does not match the length of ch_list")
