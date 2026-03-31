@@ -10,7 +10,7 @@ class SISSetter(DeviceBase):
         super().__init__(device_name, config_file)
         
         import pyinterface
-        self.da = pyinterface.open(3346,rsw_id)
+        self.da = pyinterface.open(3346,self.Config.rsw_id)
         self.da.initialize()
 
     def setup(self):
@@ -25,7 +25,9 @@ class SISSetter(DeviceBase):
         else:
             raise TypeError("ch_range must be string")
 
-
     def run(self, **kwargs):
         self.da.da.output_da(self.metadata_dict, **kwargs)
         return None
+    
+    def teardown(self):
+        self.da.output_da(self.metadata_dict, [0] * len(self.metadata_dict))
