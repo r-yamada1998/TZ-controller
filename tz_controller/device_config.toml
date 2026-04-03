@@ -1,9 +1,8 @@
 [sis_bias_setter]
-_ = "CPZ340816"
+_ = "CPZ3346"
 rsw_id = 0
 channel = { USB = 3, LSB = 4 }
 max_mv = [-8, 8]
-converter = { USB = "x / 3", LSB = "x/3" }
 tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4}
 
 [sis_bias_reader]
@@ -16,10 +15,24 @@ smpl_freq = 1000
 single_diff = "DIFF"
 ch_range = '5V'
 
-
 [local_attenuator]
-_ = "CPZ340516"
-channel = { 100GHz = 1 }
-range = "DA0_100mA"
-rate = 0.1
-rsw_id = 0
+_ = "GPVDC15"
+host = "192.168.223.102"
+
+[local_attenuator.channels]
+4 = { att_current = 10.0 }
+5 = { att_current = 12.5 }
+
+
+[spectrum_analyzer]
+_ = "KeysightN9343C"
+host = "192.168.223.105"
+port = 5025
+
+[spectrum_analyzer.defaults]
+center = "6GHz"
+span = "0MHz"
+rbw = "300Hz"
+vbw = "300Hz"
+scale_type = "LOG"
+average_onoff = "OFF"
