@@ -1,16 +1,7 @@
-# template
+# TZ-controller
 
-This repository contains template files and directories for the following language:
+This is the Python implementation of the TZ receiver, a part of HINOTORI installed on the Nobeyama 45-m telescope.
 
-- Python
-- Node.js
 
 ## Usage
-
-- `Use this template`
-- Configure and create repository
-    - Make sure `Include all branches` is checked
-- Change default branch
-- Remove other branches
-- Rename the branch to `main`
-- Follow the instructions in `setup/setup-guide.md` (Python template only for now...)
+Under constraction
