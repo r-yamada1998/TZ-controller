@@ -22,4 +22,14 @@ _ = "CPZ340516"
 channel = { 100GHz = 1 }
 range = "DA0_100mA"
 rate = 0.1
-rsw_id = 0
+
+[if_switch]
+_ = agilent11713
+host = 192.168.223.104
+gpibport = 10
+
+[if_switch.channel]
+HU = 105
+HL = 106
+VU = 107
+VL = 108
