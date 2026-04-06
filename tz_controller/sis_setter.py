@@ -1,33 +1,134 @@
+from __future__ import annotations
+
+from typing import Dict, List
+
 from .device_base import DeviceBase
 
+
 class SISSetter(DeviceBase):
+    """
+    SIS bias setter controller for Interface CPZ3346A.
+
+    Example config:
+        [sis_bias_setter]
+        _ = "CPZ3346"
+        rsw_id = 0
+        channel = { v1 = "ch5", h1 = "ch6", h2 = "ch7", v2 = "ch8" }
+        range = { v1 = "10V", h1 = "10V", h2 = "10V", v2 = "10V" }
+        tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4 }
+
+    Usage:
+        sis.setup(v1=6.9)
+        sis.setup(v1=6.9, v2=6.5)
+        sis.setup()  # use config.tuned
+    """
 
     Manufacturer = "Interface"
     Model = "CPZ3346A"
     Identifier = "rsw_id"
 
-    def __init__(self, device_name, config_file) -> None:
+    VALID_RANGES = {"0_10V", "5V", "10V"}
+
+    def __init__(self, device_name: str, config_file: str) -> None:
         super().__init__(device_name, config_file)
-        
+
         import pyinterface
-        self.da = pyinterface.open(3346,self.device_config.rsw_id)
+
+        self.da = pyinterface.open(3346, self.device_config.rsw_id)
         self.da.initialize()
 
-    def setup(self):
-        self.ch_list = self.device_config.ch_num_li
-        self.ch_range = self.device_config.ch_range
-        if isinstance(self.ch_range, list):
-            if len(self.ch_range) != len(self.ch_list):
-                raise ValueError("length of ch_range does not match the length of ch_list")
-            self.metadata_dict = dict(zip(self.ch_list, self.ch_range))
-        elif isinstance(self.ch_range, str):
-            self.metadata_dict = {ch: self.ch_range for ch in self.ch_list}
-        else:
-            raise TypeError("ch_range must be string")
+        self.smpl_ch_req: List[Dict[str, object]] = []
+        self.data: List[float] = []
 
-    def run(self, **kwargs):
-        self.da.da.output_da(self.metadata_dict, **kwargs)
-        return None
-    
-    def teardown(self):
-        self.da.output_da(self.metadata_dict, [0] * len(self.metadata_dict))
+    def setup(self, **kwargs: float) -> None:
+        """
+        Resolve output channels, ranges, and voltages from keyword arguments.
+
+        Examples:
+            setup(v1=6.9)
+            setup(v1=6.9, v2=6.5)
+
+        If no kwargs are given, config.tuned is used.
+        """
+        channel_map = dict(self.device_config.channel)
+        range_map = dict(self.device_config.range)
+        tuned_map = dict(self.device_config.tuned)
+
+        requested = kwargs if kwargs else tuned_map
+
+        smpl_ch_req: List[Dict[str, object]] = []
+        data: List[float] = []
+
+        for name, value in requested.items():
+            if name not in channel_map:
+                valid = ", ".join(channel_map.keys())
+                raise KeyError(
+                    f"Unknown bias name: {name!r}. Valid names are: {valid}"
+                )
+
+            if name not in range_map:
+                raise KeyError(f"Range is not defined for {name!r} in config.")
+
+            if not isinstance(value, (int, float)):
+                raise TypeError(
+                    f"Bias value for {name!r} must be int or float, "
+                    f"got {type(value).__name__}"
+                )
+
+            range_name = range_map[name]
+            if range_name not in self.VALID_RANGES:
+                valid = ", ".join(sorted(self.VALID_RANGES))
+                raise ValueError(
+                    f"Invalid range for {name!r}: {range_name!r}. "
+                    f"Valid ranges are: {valid}"
+                )
+
+            ch_no = self._parse_channel_number(channel_map[name])
+
+            smpl_ch_req.append(
+                {
+                    "ch_no": ch_no,
+                    "range": range_name,
+                }
+            )
+            data.append(float(value))
+
+        self.smpl_ch_req = smpl_ch_req
+        self.data = data
+
+    def run(self) -> None:
+        """
+        Output resolved voltages to the DA board.
+        """
+        if not self.smpl_ch_req or not self.data:
+            raise RuntimeError("setup() must be called before run().")
+
+        self.da.output_da(self.smpl_ch_req, self.data)
+
+    def teardown(self) -> None:
+        """
+        Reset only the channels used in the last setup() to 0 V.
+        """
+        if not self.smpl_ch_req:
+            return
+
+        zero_data = [0.0] * len(self.smpl_ch_req)
+        self.da.output_da(self.smpl_ch_req, zero_data)
+
+    @staticmethod
+    def _parse_channel_number(ch_label: str) -> int:
+        """
+        Convert a channel label like 'ch5' to integer 5.
+        """
+        if not isinstance(ch_label, str):
+            raise TypeError(
+                f"Channel label must be a string like 'ch5', got {type(ch_label).__name__}"
+            )
+
+        if not ch_label.startswith("ch"):
+            raise ValueError(f"Invalid channel label: {ch_label!r}")
+
+        try:
+            return int(ch_label[2:])
+        except ValueError as e:
+            raise ValueError(f"Invalid channel label: {ch_label!r}") from e
