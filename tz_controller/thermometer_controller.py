@@ -33,31 +33,37 @@ class ThermometerController(DeviceBase):
         com = ogameasure.gpib_prologix(host, gpib_port)
         self.device = ogameasure.Lakeshore.model218(com)
 
-    def run(self, **kwargs) -> list | None:
+    def setup(self, **kwargs) -> None:
         """
-        Acquire temperature readings from all channels.
+        Configure measurement settings.
 
         Keyword Arguments
         -----------------
-        return_data : bool, optional
-            If True, return the acquired temperatures.
+        save : bool, optional
+            If True, run() returns the acquired temperatures. Default is False.
+        """
+        self.save = kwargs.get("save", False)
+    
+    def run(self) -> list | None:
+        """
+        Acquire temperature readings from all channels.
 
         Returns
         -------
         list or None
-            List of temperatures in Kelvin if return_data=True, otherwise None.
+            List of temperatures in Kelvin if save=True, otherwise None.
         """
         while True:
             try:
                 temps = list(self.device.kelvin_reading_query(ch=0))
                 break
-            except (socket.timeout, ConnectionResetError, BrokenPipeError):
+            except OSError:
                 self.logger.warning("Connection error. Retrying in 1 second...")
                 time.sleep(1)
 
         for i in range(self.ch_num):
             self.logger.info(f"CH{i+1}: {temps[i]:.3f} K")
 
-        if kwargs.get("return_data"):
+        if self.save:
             return temps
         return None
