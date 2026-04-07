@@ -1,3 +1,4 @@
+# await処理が必要
 from __future__ import annotations
 
 from typing import Dict, List
@@ -95,15 +96,6 @@ class SISReader(DeviceBase):
         self.smpl_ch_req = smpl_ch_req
         self.selected_names = requested_names
 
-        self.ad.set_sampling_config(
-            smpl_ch_req=self.smpl_ch_req,
-            smpl_num=self.device_config.ave_num,
-            smpl_freq=self.device_config.smpl_freq,
-            single_diff=self.device_config.single_diff,
-            trig_mode="ETERNITY",
-        )
-        self.ad.start_sampling("ASYNC")
-
     def run(self) -> Dict[str, float]:
         """
         Read averaged voltages from the configured sampling channels.
@@ -113,10 +105,24 @@ class SISReader(DeviceBase):
         """
         if not self.smpl_ch_req:
             raise RuntimeError("setup() must be called before run().")
-
-        status = self.ad.get_status()
-        smpl_count = status["smpl_count"]
+        
+        self.ad.set_sampling_config(
+            smpl_ch_req=self.smpl_ch_req,
+            smpl_num=self.device_config.smpl_num,
+            smpl_freq=self.device_config.smpl_freq,
+            single_diff=self.device_config.single_diff,
+            trig_mode="ETERNITY",
+        )
+        self.ad.start_sampling("ASYNC")
         ave_num = self.device_config.ave_num
+
+        while True:
+            status = self.ad.get_status()
+            smpl_count = status["smpl_count"]
+            if smpl_count > ave_num:
+                break
+            else:
+                continue
 
         offset = smpl_count - ave_num
         if offset < 0:
@@ -140,6 +146,7 @@ class SISReader(DeviceBase):
         Stop sampling.
         """
         self.ad.stop_sampling()
+        self.ad.clear_sampling_data()
 
     @staticmethod
     def _parse_channel_number(ch_label: str) -> int:
