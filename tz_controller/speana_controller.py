@@ -12,9 +12,9 @@ class SpectrumAnalyzer(DeviceBase):
     """
     Device controller for the Keysight N9343C spectrum analyzer.
 
-    This implementation follows the DeviceBase lifecycle:
-        - setup(): prepare internal state only
-        - run(**kwargs): resolve runtime parameters and access hardware
+    Updated behavior:
+        - setup(**kwargs): resolve parameters and apply them to hardware
+        - run(): query and return trace data only
         - teardown(): optional cleanup
 
     Configuration example:
@@ -58,33 +58,15 @@ class SpectrumAnalyzer(DeviceBase):
         self.com = ogameasure.ethernet(self.host, self.port)
         self.sa = ogameasure.Keysight.N9343C(self.com)
 
-        self.resolved_params: dict[str, Any] = {}
-
         self._k = 10**3
         self._M = 10**6
         self._G = 10**9
 
-    def setup(self) -> None:
+    def setup(self, **kwargs) -> None:
         """
-        Prepare default parameters from the configuration without touching hardware.
+        Resolve parameters from config defaults and kwargs, then apply them to hardware.
 
-        This method is intentionally argument-free to match DeviceBase.start().
-        Runtime overrides must be passed to run(**kwargs).
-        """
-        self.resolved_params = dict(self._config_defaults_as_dict())
-
-        if self.resolved_params:
-            for key, value in self.resolved_params.items():
-                self.logger.info("Prepared default parameter: %s=%r", key, value)
-        else:
-            self.logger.info("No default parameters were defined in the configuration.")
-
-    def run(self, **kwargs) -> None:
-        """
-        Apply spectrum analyzer settings to hardware.
-
-        Parameters passed through kwargs override both the values prepared by setup()
-        and the configuration defaults.
+        Parameters passed through kwargs override configuration defaults.
 
         Accepted parameters include:
             center
@@ -106,7 +88,7 @@ class SpectrumAnalyzer(DeviceBase):
             sweep_time
             preset_0span
         """
-        params = dict(self.resolved_params) if self.resolved_params else dict(self._config_defaults_as_dict())
+        params = dict(self._config_defaults_as_dict())
         params.update(kwargs)
 
         self.com.open()
@@ -182,6 +164,16 @@ class SpectrumAnalyzer(DeviceBase):
                 self.sa.sweep_time_set(params["sweep_time"])
                 self.logger.info("Sweep time set to %r s", params["sweep_time"])
 
+        finally:
+            self.com.close()
+
+    def run(self):
+        """
+        Query and return trace data from the spectrum analyzer.
+        """
+        self.com.open()
+        try:
+            return self.sa.trace_data_query()
         finally:
             self.com.close()
 
@@ -292,17 +284,19 @@ class SpectrumAnalyzer(DeviceBase):
 
     def gen_xaxis(self):
         """
-        Generate the frequency axis from the current sweep settings.
+        Generate frequency axis and return (x, y) spectrum data.
         """
         self.com.open()
         try:
             start = self.sa.frequency_start_query()
             stop = self.sa.frequency_stop_query()
-            num = len(self.sa.trace_data_query())
+            y = self.sa.trace_data_query()
         finally:
             self.com.close()
 
-        return numpy.linspace(start, stop, num)
+        x = np.linspace(start, stop, len(y))
+
+        return x, y
 
     @staticmethod
     def auto_set_query(query: int) -> str:
