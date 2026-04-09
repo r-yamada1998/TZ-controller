@@ -233,21 +233,22 @@ class DeviceBase(abc.ABC):
             finally:
                 self.release_lock()
 
-        def setup(self, **kwargs) -> None:
-            """
-            Override in subclasses if needed.
-            """
-            pass
+    @abc.abstractmethod
+    def setup(self, **kwargs) -> None:
+        """
+        Override in subclasses if needed.
+        """
+        pass
 
-        @abc.abstractmethod
-        def run(self) -> None:
-            """
-            Device-specific main routine.
-            """
-            raise NotImplementedError
+    @abc.abstractmethod
+    def run(self) -> None:
+        """
+        Device-specific main routine.
+        """
+        raise NotImplementedError
 
-        def teardown(self) -> None:
-            """
-            Override in subclasses if needed.
-            """
-            pass
+    def teardown(self) -> None:
+        """
+        Override in subclasses if needed.
+        """
+        pass
