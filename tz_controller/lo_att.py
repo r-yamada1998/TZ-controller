@@ -174,8 +174,7 @@ class LoAttenuator(DeviceBase):
 
             lo.com.open()
             try:
-                lo.output_set()
-                lo.current_set(att_current)
+                lo.output_set(att_current)
                 self.logger.info(
                     "Set local attenuator: gpib_port=%s, att_current=%s",
                     port,
