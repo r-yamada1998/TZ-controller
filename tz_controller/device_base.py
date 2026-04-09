@@ -222,32 +222,32 @@ class DeviceBase(abc.ABC):
 
         self.logger.info("Lock released: %s", self.lock_file_path)
 
-def start(self, **kwargs) -> None:
-    self.acquire_lock()
-    try:
-        self.setup(**kwargs)
-        self.run()
-    finally:
+    def start(self, **kwargs) -> None:
+        self.acquire_lock()
         try:
-            self.teardown()
+            self.setup(**kwargs)
+            self.run()
         finally:
-            self.release_lock()
+            try:
+                self.teardown()
+            finally:
+                self.release_lock()
 
-    def setup(self, **kwargs) -> None:
-        """
-        Override in subclasses if needed.
-        """
-        pass
+        def setup(self, **kwargs) -> None:
+            """
+            Override in subclasses if needed.
+            """
+            pass
 
-    @abc.abstractmethod
-    def run(self) -> None:
-        """
-        Device-specific main routine.
-        """
-        raise NotImplementedError
+        @abc.abstractmethod
+        def run(self) -> None:
+            """
+            Device-specific main routine.
+            """
+            raise NotImplementedError
 
-    def teardown(self) -> None:
-        """
-        Override in subclasses if needed.
-        """
-        pass
+        def teardown(self) -> None:
+            """
+            Override in subclasses if needed.
+            """
+            pass
