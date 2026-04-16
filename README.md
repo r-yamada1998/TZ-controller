@@ -4,9 +4,6 @@ This is the Python implementation of the TZ receiver, a part of HINOTORI install
 
 
 ## Usage
-Under constraction
-
-
 TZ制御用FACにて実行する。
 
 sshログインののち、
@@ -14,6 +11,8 @@ sshログインののち、
 # cd tz_workspace
 # uv run ipython
 ```
+
+uvでpythonを起動したら、
 
 ```python
 $ from tz_controller.sis_setter import SISSetter
