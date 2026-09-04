@@ -1,34 +1,51 @@
 [sis_bias_setter]
 _ = "CPZ3346"
 rsw_id = 0
-channel = { v1 = "ch5", v2 = "ch8", h1 = "ch6", h2 = "ch7"}
-ch_num_li = [5,6,7,8]
-ave_num = 100
-smpl_freq = 1000
-range = { v1 = "10V", h1 = "10V", h2 = "10V", v2 = "10V" }
-tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4}
+# Bias command in mV -> DA output in volts. = 0.94/3, the bias box calibration.
+# Without it the command reaches the DA board unscaled and over-biases the
+# junction by about 3.2x.
+conversion_factor = 0.3133333333333333
+channel = { v1 = "ch5", v2 = "ch8", h1 = "ch6", h2 = "ch7" }
+range = { v1 = "10V", v2 = "10V", h1 = "10V", h2 = "10V" }
+tuned = { v1 = 6.9, v2 = 6.5, h1 = 6.5, h2 = 7.4 }
 
 [sis_bias_reader]
 _ = "CPZ3177"
 rsw_id = 0
 all_ch_num = 8
-channel = { v1 = "ch5", v2 = "ch8", h1 = "ch6", h2 = "ch7", v1_v = "ch1", v2_v = "ch4", h1_v = "ch2", h2_v = "ch3"}
-ch_range = { v1 = "10V", v2 = "10V", h1 = "10V", h2 = "10V", v1_v = "10V", v2_v = "10V", h1_v = "10V", h2_v = "10V"}
-ch_num_li = [1,2,3,4,5,6,7,8]
+# Wiring identified on the receiver on 2026-09-04, by sweeping one mixer at a
+# time from 0 to 8 mV while recording all 16 AD channels as raw volts, and
+# reading off which column moved.
+# Adjacent pairs, odd = current monitor, even = voltage monitor:
+#     v1 -> ch9  / ch10
+#     h1 -> ch11 / ch12
+#     h2 -> ch13 / ch14
+#     v2 -> ch15 / ch16
+# The order v1, h1, h2, v2 matches the argument order of
+# set_sis_vol_direction.py in the manual.
+#
+# Registration order is readout order. During the sweep the residue of the last
+# channel in the list landed on the first one at 0.81x, so the voltage channels,
+# which swing 2.86 V, are never placed last.
+channel = { v1_v = "ch10", v1 = "ch9", v2_v = "ch16", v2 = "ch15", h1_v = "ch12", h1 = "ch11", h2_v = "ch14", h2 = "ch13" }
+ch_range = { v1_v = "10V", v1 = "10V", v2_v = "10V", v2 = "10V", h1_v = "10V", h1 = "10V", h2_v = "10V", h2 = "10V" }
+# Current monitors -500 uA/V, voltage monitors -2.80 mV/V (measured 2026-09-04).
+# The monitor gains differ, so a single scalar cannot scale both.
+conversion_factor = { v1_v = -2.80, v1 = -500, v2_v = -2.80, v2 = -500, h1_v = -2.80, h1 = -500, h2_v = -2.80, h2 = -500 }
 ave_num = 10
 smpl_freq = 1000
 smpl_num = 15
 single_diff = "DIFF"
 
-
 [local_attenuator]
 _ = "GPVDC15"
 host = "192.168.223.102"
 
+# TODO: which GPIB port feeds the V mixers and which the H mixers is not
+# recorded anywhere. Worth settling and writing down here.
 [local_attenuator.channels]
 4 = { att_current = 10.0 }
 5 = { att_current = 12.5 }
-
 
 [spectrum_analyzer]
 _ = "KeysightN9343C"
