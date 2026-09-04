@@ -13,9 +13,15 @@ class SISSetter(DeviceBase):
         [sis_bias_setter]
         _ = "CPZ3346"
         rsw_id = 0
+        conversion_factor = 0.3133333333333333
         channel = { v1 = "ch5", h1 = "ch6", h2 = "ch7", v2 = "ch8" }
         range = { v1 = "10V", h1 = "10V", h2 = "10V", v2 = "10V" }
         tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4 }
+
+    conversion_factor converts a bias command in mV into the DA output voltage
+    in volts. It is the calibration of the bias box and MUST be present in
+    config: without it a command of 6.9 would put 6.9 V on the DA instead of
+    2.16 V, over-biasing the junction by a factor of about 3.2.
 
     Usage:
         sis.setup(v1=6.9)
@@ -56,6 +62,8 @@ class SISSetter(DeviceBase):
 
         requested = kwargs if kwargs else tuned_map
 
+        self.conversion_factor = self._resolve_conversion_factor()
+
         smpl_ch_req: List[Dict[str, object]] = []
         data: List[float] = []
 
@@ -91,7 +99,7 @@ class SISSetter(DeviceBase):
                     "range": range_name,
                 }
             )
-            data.append(float(value))
+            data.append(float(value)*self.conversion_factor)
 
         self.smpl_ch_req = smpl_ch_req
         self.data = data
@@ -114,6 +122,33 @@ class SISSetter(DeviceBase):
 
         zero_data = [0.0] * len(self.smpl_ch_req)
         self.da.output_da(self.smpl_ch_req, zero_data)
+
+    def _resolve_conversion_factor(self) -> float:
+        """
+        Read the bias box calibration from config.
+
+        Deliberately has no default. A missing factor would silently apply the
+        raw command value to the DA board, which over-biases the junction by
+        the box gain (about 3.2 for the current hardware).
+        """
+        factor = getattr(self.device_config, "conversion_factor", None)
+
+        if factor is None:
+            raise KeyError(
+                "conversion_factor is not defined for "
+                f"{self.device_name!r} in config. It converts a bias command "
+                "in mV into the DA output voltage in volts, and there is no "
+                "safe default: without it the raw command value would reach "
+                "the DA board and over-bias the junction."
+            )
+
+        if not isinstance(factor, (int, float)) or isinstance(factor, bool):
+            raise TypeError(
+                "conversion_factor must be int or float, "
+                f"got {type(factor).__name__}"
+            )
+
+        return float(factor)
 
     @staticmethod
     def _parse_channel_number(ch_label: str) -> int:

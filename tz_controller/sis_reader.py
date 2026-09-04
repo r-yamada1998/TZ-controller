@@ -55,7 +55,6 @@ class SISReader(DeviceBase):
         """
         channel_map = dict(self.device_config.channel)
         range_map = dict(self.device_config.ch_range)
-
         if kwargs:
             requested_names = [name for name, enabled in kwargs.items() if enabled]
         else:
@@ -95,6 +94,9 @@ class SISReader(DeviceBase):
 
         self.smpl_ch_req = smpl_ch_req
         self.selected_names = requested_names
+        self.conversion_factors = self._resolve_conversion_factors(
+            self.device_config.conversion_factor, requested_names
+        )
 
     def run(self) -> Dict[str, float]:
         """
@@ -136,7 +138,7 @@ class SISReader(DeviceBase):
         ave_data: Dict[str, float] = {}
         for i, name in enumerate(self.selected_names):
             values = [data[k][i] for k in range(ave_num)]
-            ave_data[name] = sum(values) / ave_num
+            ave_data[name] = self.conversion_factors[name]*(sum(values) / ave_num)
 
         self.logger.info(f"SIS bias reading results are {ave_data}")
         return ave_data
@@ -147,6 +149,52 @@ class SISReader(DeviceBase):
         """
         self.ad.stop_sampling()
         self.ad.clear_sampling_data()
+
+    @staticmethod
+    def _resolve_conversion_factors(
+        conversion_factor: object,
+        names: List[str],
+    ) -> Dict[str, float]:
+        """
+        Resolve a per-channel conversion factor for each requested channel.
+
+        The config value may be either:
+
+            conversion_factor = -500                      # scalar, applied to all
+            conversion_factor = { v1 = -500, v1_v = 2.82 }  # per-channel table
+
+        A scalar is kept for backward compatibility, but note that current
+        monitor channels and voltage monitor channels have different monitor
+        gains. Whenever both kinds are registered in one section, the table
+        form must be used, otherwise one of them is necessarily mis-scaled.
+        """
+        if isinstance(conversion_factor, (int, float)) and not isinstance(
+            conversion_factor, bool
+        ):
+            return {name: float(conversion_factor) for name in names}
+
+        if isinstance(conversion_factor, dict):
+            factors: Dict[str, float] = {}
+            for name in names:
+                if name not in conversion_factor:
+                    valid = ", ".join(conversion_factor.keys())
+                    raise KeyError(
+                        f"conversion_factor is not defined for {name!r} in config. "
+                        f"Defined names are: {valid}"
+                    )
+                value = conversion_factor[name]
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    raise TypeError(
+                        f"conversion_factor for {name!r} must be int or float, "
+                        f"got {type(value).__name__}"
+                    )
+                factors[name] = float(value)
+            return factors
+
+        raise TypeError(
+            "conversion_factor must be a number or a table of numbers, "
+            f"got {type(conversion_factor).__name__}"
+        )
 
     @staticmethod
     def _parse_channel_number(ch_label: str) -> int:
