@@ -13,15 +13,15 @@ class SISSetter(DeviceBase):
         [sis_bias_setter]
         _ = "CPZ3346"
         rsw_id = 0
-        conversion_factor = 0.3133333333333333
+        conversion_factor = 0.3546099290780142
         channel = { v1 = "ch5", h1 = "ch6", h2 = "ch7", v2 = "ch8" }
         range = { v1 = "10V", h1 = "10V", h2 = "10V", v2 = "10V" }
-        tuned = { v1 = 6.9, h1 = 6.5, v2 = 6.5, h2 = 7.4 }
+        tuned = { v1 = 6.1, h1 = 7.2, h2 = 7.4, v2 = 6.1 }
 
-    conversion_factor converts a bias command in mV into the DA output voltage
-    in volts. It is the calibration of the bias box and MUST be present in
-    config: without it a command of 6.9 would put 6.9 V on the DA instead of
-    2.16 V, over-biasing the junction by a factor of about 3.2.
+    conversion_factor converts a bias setting in mV into the DA output voltage
+    in volts, 1 / (3 * 0.94). It is the calibration of the bias box and MUST
+    be present in config: without it a setting of 7.2 would put 7.2 V on the
+    DA instead of 2.55 V, and the junction would see 2.82 times the setting.
 
     Usage:
         sis.setup(v1=6.9)
@@ -129,7 +129,7 @@ class SISSetter(DeviceBase):
 
         Deliberately has no default. A missing factor would silently apply the
         raw command value to the DA board, which over-biases the junction by
-        the box gain (about 3.2 for the current hardware).
+        the box gain (2.82 for the current hardware).
         """
         factor = getattr(self.device_config, "conversion_factor", None)
 

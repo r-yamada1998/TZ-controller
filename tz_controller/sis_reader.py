@@ -161,7 +161,7 @@ class SISReader(DeviceBase):
         The config value may be either:
 
             conversion_factor = -500                      # scalar, applied to all
-            conversion_factor = { v1 = -500, v1_v = 2.82 }  # per-channel table
+            conversion_factor = { v1 = -500, v1_v = -5.0 }  # per-channel table
 
         A scalar is kept for backward compatibility, but note that current
         monitor channels and voltage monitor channels have different monitor
