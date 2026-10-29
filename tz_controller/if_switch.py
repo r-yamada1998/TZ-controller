@@ -37,3 +37,36 @@ class IFSwitch(DeviceBase):
 
     def teardown(self):
         pass
+
+    def query(self, command):
+        """
+        Send a query and return the answer, e.g.
+            query(":DIAGnostic:RELay:CYCles? (@105,106,107,108)")
+        The relay cycle counters show whether a path was really driven: the
+        open and close commands get no answer of their own.
+
+        A read that times out leaves the connection unreadable, so the
+        connection is opened again and SYST:ERR? asked; the error is raised
+        with that answer.
+        """
+        com = self.sw.com
+        try:
+            com.send(command)
+            return com.readline().strip()
+        except Exception as e:
+            self._reconnect()
+            try:
+                com.send("SYST:ERR?")
+                err = com.readline().strip()
+            except Exception:
+                self._reconnect()
+                err = "no answer either"
+            raise TimeoutError(f"No answer to {command!r} ({e}); SYST:ERR? -> {err}") from e
+
+    def _reconnect(self):
+        com = self.sw.com
+        try:
+            com.close()
+        except Exception:
+            pass
+        com.open()
