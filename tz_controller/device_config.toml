@@ -53,6 +53,10 @@ host = "192.168.223.102"
 _ = "KeysightN9343C"
 host = "192.168.223.105"
 port = 5025
+# The analyzer answers the first query of a new connection after about 4 s,
+# beyond the 3 s default of ogameasure: one connection, kept open.
+timeout = 15
+keep_open = true
 
 [spectrum_analyzer.defaults]
 center = "6GHz"
@@ -83,3 +87,9 @@ output = true
 _ = "agilent11713B"
 host = "192.168.223.104"
 port = 10
+
+# Phase Matrix FSW-0020, the test signal source for IRR measurement
+[irr_signal_generator]
+_ = "FSW0020"
+host = "192.168.223.101"
+port = 10001
