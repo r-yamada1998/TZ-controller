@@ -18,7 +18,7 @@ class IFSwitch(DeviceBase):
         return None
     
     def close(self, channel):
-        self.sw.switch_open(channel)
+        self.sw.switch_close(channel)
 
     def setup(self,**kwargs):
         if "oc" in kwargs:
