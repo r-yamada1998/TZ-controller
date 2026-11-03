@@ -129,6 +129,25 @@ class SignalGenerator(DeviceBase):
         }
 
     # ============================================================
+    # connection
+    # ============================================================
+    def disconnect(self) -> None:
+        """
+        Close the connection and leave the output as it is. The generator
+        takes one connection at a time, so a program that waits (such as
+        initialize.py waiting for "finished") must not hold it.
+        """
+        self.sg.close()
+
+    def reconnect(self) -> None:
+        """Open a new connection after disconnect(), as __init__ does."""
+        host = self.device_config.host
+        port = int(getattr(self.device_config, "port", 18))
+        self.com = ogameasure.ethernet(host, port)
+        self.com.open()
+        self.sg = ogameasure.AnaPico.APSYN420(self.com)
+
+    # ============================================================
     # quick API
     # ============================================================
     def set_output_only(self, output: bool) -> None:
