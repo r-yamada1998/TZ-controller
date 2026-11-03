@@ -1,3 +1,9 @@
+[thermometer_controller]
+_ = "Lakeshore218"
+host = "192.168.100.12"     # Prologix GPIBアダプタのIPアドレス
+gpib_port = 13              # Lakeshore 218のGPIBアドレス
+ch_num = 4                  # チャンネル数
+
 [sis_bias_setter]
 _ = "CPZ3346"
 rsw_id = 0
