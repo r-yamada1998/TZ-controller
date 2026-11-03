@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from typing import Any, ClassVar, Optional, Union
 
-import numpy
+import numpy as np
 
 from .configuration import Config
 from .device_base import DeviceBase
@@ -12,9 +13,9 @@ class SpectrumAnalyzer(DeviceBase):
     """
     Device controller for the Keysight N9343C spectrum analyzer.
 
-    This implementation follows the DeviceBase lifecycle:
-        - setup(): prepare internal state only
-        - run(**kwargs): resolve runtime parameters and access hardware
+    Updated behavior:
+        - setup(**kwargs): resolve parameters and apply them to hardware
+        - run(): query and return trace data only
         - teardown(): optional cleanup
 
     Configuration example:
@@ -31,6 +32,16 @@ class SpectrumAnalyzer(DeviceBase):
         vbw = "300Hz"
         scale_type = "LOG"
         average_onoff = "OFF"
+
+    Optional connection settings:
+
+        timeout = 15      # s to wait for an answer (ogameasure default: 3)
+        keep_open = true  # open the connection once and keep it
+
+    On a new connection the N9343C answers the first query after about 4 s
+    (measured 2026-10-22), so with the default 3 s every call that opens a
+    new connection times out. keep_open = true opens the connection here,
+    once, and keeps it until disconnect(); every call then answers at once.
     """
 
     Model: ClassVar[str] = "N9343C"
@@ -58,33 +69,22 @@ class SpectrumAnalyzer(DeviceBase):
         self.com = ogameasure.ethernet(self.host, self.port)
         self.sa = ogameasure.Keysight.N9343C(self.com)
 
-        self.resolved_params: dict[str, Any] = {}
+        timeout = getattr(self.device_config, "timeout", None)
+        if timeout is not None:
+            self.com.timeout = float(timeout)
+        self.keep_open = bool(getattr(self.device_config, "keep_open", False))
+        if self.keep_open:
+            self.com.open()
 
         self._k = 10**3
         self._M = 10**6
         self._G = 10**9
 
-    def setup(self) -> None:
+    def setup(self, **kwargs) -> None:
         """
-        Prepare default parameters from the configuration without touching hardware.
+        Resolve parameters from config defaults and kwargs, then apply them to hardware.
 
-        This method is intentionally argument-free to match DeviceBase.start().
-        Runtime overrides must be passed to run(**kwargs).
-        """
-        self.resolved_params = dict(self._config_defaults_as_dict())
-
-        if self.resolved_params:
-            for key, value in self.resolved_params.items():
-                self.logger.info("Prepared default parameter: %s=%r", key, value)
-        else:
-            self.logger.info("No default parameters were defined in the configuration.")
-
-    def run(self, **kwargs) -> None:
-        """
-        Apply spectrum analyzer settings to hardware.
-
-        Parameters passed through kwargs override both the values prepared by setup()
-        and the configuration defaults.
+        Parameters passed through kwargs override configuration defaults.
 
         Accepted parameters include:
             center
@@ -106,13 +106,37 @@ class SpectrumAnalyzer(DeviceBase):
             sweep_time
             preset_0span
         """
-        params = dict(self.resolved_params) if self.resolved_params else dict(self._config_defaults_as_dict())
+        params = dict(self._config_defaults_as_dict())
         params.update(kwargs)
 
-        self.com.open()
+        self._open()
         try:
             if params.get("preset_0span", False):
                 self._apply_0span_preset()
+
+            # The analyzer refuses a wide span while the RBW is still small
+            # (2026-10-22). So the bandwidths are sent before the span, and
+            # at zero span when the span changes too.
+            if any(k in params for k in ("start", "stop", "span")) and any(
+                k in params for k in ("rbw", "rbw_auto", "vbw", "vbw_auto")
+            ):
+                self.sa.frequency_span_set("0Hz")
+
+            if "rbw" in params:
+                self.sa.resolution_bw_set(params["rbw"])
+                self.logger.info("RBW set to %r", params["rbw"])
+
+            if "rbw_auto" in params:
+                self.sa.resolution_bw_auto_set(params["rbw_auto"])
+                self.logger.info("RBW auto set to %r", params["rbw_auto"])
+
+            if "vbw" in params:
+                self.sa.video_bw_set(params["vbw"])
+                self.logger.info("VBW set to %r", params["vbw"])
+
+            if "vbw_auto" in params:
+                self.sa.video_bw_auto_set(params["vbw_auto"])
+                self.logger.info("VBW auto set to %r", params["vbw_auto"])
 
             if "center" in params:
                 self.sa.frequency_center_set(params["center"])
@@ -150,22 +174,6 @@ class SpectrumAnalyzer(DeviceBase):
                 self.sa.scaletype_set(params["scale_type"])
                 self.logger.info("Scale type set to %r", params["scale_type"])
 
-            if "rbw" in params:
-                self.sa.resolution_bw_set(params["rbw"])
-                self.logger.info("RBW set to %r", params["rbw"])
-
-            if "rbw_auto" in params:
-                self.sa.resolution_bw_auto_set(params["rbw_auto"])
-                self.logger.info("RBW auto set to %r", params["rbw_auto"])
-
-            if "vbw" in params:
-                self.sa.video_bw_set(params["vbw"])
-                self.logger.info("VBW set to %r", params["vbw"])
-
-            if "vbw_auto" in params:
-                self.sa.video_bw_auto_set(params["vbw_auto"])
-                self.logger.info("VBW auto set to %r", params["vbw_auto"])
-
             if "average_num" in params:
                 self.sa.average_set(params["average_num"])
                 self.logger.info("Average number set to %r", params["average_num"])
@@ -183,16 +191,88 @@ class SpectrumAnalyzer(DeviceBase):
                 self.logger.info("Sweep time set to %r s", params["sweep_time"])
 
         finally:
-            self.com.close()
+            self._close()
+
+    def run(self):
+        """
+        Query and return trace data from the spectrum analyzer.
+        """
+        self._open()
+        try:
+            return self.sa.trace_data_query()
+        finally:
+            self._close()
 
     def teardown(self) -> None:
         """
         Perform optional cleanup after run().
 
         No hardware action is required here because communication is opened and
-        closed inside each hardware-accessing method.
+        closed inside each hardware-accessing method (or kept, see keep_open).
         """
         pass
+
+    def disconnect(self) -> None:
+        """Close the connection kept open by keep_open."""
+        if self.keep_open:
+            self.com.close()
+
+    def sweep_time(self) -> float:
+        """Sweep time [s] as the analyzer reports it."""
+        self._open()
+        try:
+            return float(self.sa.sweep_time_query())
+        finally:
+            self._close()
+
+    def fresh_trace(self, average_num: int) -> Any:
+        """
+        Restart the averaging, wait until average_num sweeps are done, and
+        return the trace. Nothing from before the call (IF band, load, test
+        signal) is in it; the TZ manual asks the operator to confirm the
+        averaging has completed before recording. Call it after the wait for
+        the receiver to settle.
+        """
+        self._open()
+        try:
+            self.sa.average_restart()
+            sweep = float(self.sa.sweep_time_query())
+        finally:
+            self._close()
+        wait = average_num * sweep * 1.2 + 1.0
+        self.logger.info("Waiting %.1f s for %d averaged sweeps", wait, average_num)
+        time.sleep(wait)
+        return self.run()
+
+    def set_continuous(self, on: bool) -> None:
+        """Continuous sweep on or off (INIT:CONT). On is the usual state."""
+        self._open()
+        try:
+            self.com.send("INIT:CONT " + ("ON" if on else "OFF"))
+        finally:
+            self._close()
+
+    def single_trace(self) -> Any:
+        """
+        Start one sweep, wait until the analyzer reports it finished, and
+        return the trace: a trace that surely comes from a sweep started by
+        this call. Needs set_continuous(False).
+        """
+        self._open()
+        try:
+            self.com.send("INIT:IMM;*OPC?")
+            self.com.readline()
+            return self.sa.trace_data_query()
+        finally:
+            self._close()
+
+    def _open(self) -> None:
+        if not self.keep_open:
+            self.com.open()
+
+    def _close(self) -> None:
+        if not self.keep_open:
+            self.com.close()
 
     def _config_defaults_as_dict(self) -> dict[str, Any]:
         """
@@ -231,7 +311,7 @@ class SpectrumAnalyzer(DeviceBase):
         """
         Query the current instrument parameters from hardware.
         """
-        self.com.open()
+        self._open()
         try:
             result = {
                 "center": self.sa.frequency_center_query(),
@@ -252,7 +332,7 @@ class SpectrumAnalyzer(DeviceBase):
                 "sweep_time": self.sa.sweep_time_query(),
             }
         finally:
-            self.com.close()
+            self._close()
 
         return result
 
@@ -292,17 +372,19 @@ class SpectrumAnalyzer(DeviceBase):
 
     def gen_xaxis(self):
         """
-        Generate the frequency axis from the current sweep settings.
+        Generate frequency axis and return (x, y) spectrum data.
         """
-        self.com.open()
+        self._open()
         try:
             start = self.sa.frequency_start_query()
             stop = self.sa.frequency_stop_query()
-            num = len(self.sa.trace_data_query())
+            y = self.sa.trace_data_query()
         finally:
-            self.com.close()
+            self._close()
 
-        return numpy.linspace(start, stop, num)
+        x = np.linspace(start, stop, len(y))
+
+        return x, y
 
     @staticmethod
     def auto_set_query(query: int) -> str:

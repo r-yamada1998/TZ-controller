@@ -223,27 +223,25 @@ class DeviceBase(abc.ABC):
         self.logger.info("Lock released: %s", self.lock_file_path)
 
     def start(self, **kwargs) -> None:
-        """
-        Common startup flow.
-        """
         self.acquire_lock()
         try:
-            self.setup()
-            self.run(**kwargs)
+            self.setup(**kwargs)
+            self.run()
         finally:
             try:
                 self.teardown()
             finally:
                 self.release_lock()
 
-    def setup(self) -> None:
+    @abc.abstractmethod
+    def setup(self, **kwargs) -> None:
         """
         Override in subclasses if needed.
         """
         pass
 
     @abc.abstractmethod
-    def run(self, **kwargs) -> None:
+    def run(self) -> None:
         """
         Device-specific main routine.
         """
